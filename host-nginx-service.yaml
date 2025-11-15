@@ -1,0 +1,25 @@
+---
+# Service that routes to the standalone nginx on the host
+apiVersion: v1
+kind: Service
+metadata:
+  name: host-nginx-proxy
+  namespace: caritas
+spec:
+  ports:
+  - protocol: TCP
+    port: 8089
+    targetPort: 8089
+---
+# Manual endpoints pointing to the host nginx
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: host-nginx-proxy
+  namespace: caritas
+subsets:
+- addresses:
+  - ip: 91.99.219.182
+  ports:
+  - port: 8089
+

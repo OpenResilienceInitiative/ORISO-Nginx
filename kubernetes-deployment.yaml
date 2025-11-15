@@ -1,0 +1,542 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oriso-nginx-config
+  namespace: caritas
+data:
+  nginx.conf: |
+    events {
+        worker_connections 1024;
+    }
+
+    http {
+        include /etc/nginx/mime.types;
+        default_type application/octet-stream;
+        sendfile on;
+        keepalive_timeout 65;
+
+    server {
+        listen 8089;
+        server_name localhost;
+
+        # Keycloak on host 8080 (modern Keycloak runs at root path, no /auth)
+        # We keep /auth on the proxy so the frontend URLs stay the same
+        # and strip the prefix when forwarding upstream.
+        location /auth/ {
+            # Avoid duplicate CORS headers from upstream
+            proxy_hide_header Access-Control-Allow-Origin;
+            proxy_hide_header Access-Control-Allow-Credentials;
+            # CORS for Keycloak endpoints
+            if ($request_method = OPTIONS) {
+                add_header 'Access-Control-Allow-Origin' $http_origin always;
+                add_header 'Vary' 'Origin' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, Cache-Control, Pragma, Expires, X-CSRF-Token, x-csrf-token, X-CSRF-Bypass, x-csrf-bypass, X-Requested-With, X-WHITELIST-HEADER' always;
+                add_header 'Access-Control-Allow-Credentials' 'true' always;
+                add_header 'Access-Control-Max-Age' 86400 always;
+                return 204;
+            }
+
+            add_header 'Access-Control-Allow-Origin' $http_origin always;
+            add_header 'Vary' 'Origin' always;
+            add_header 'Access-Control-Allow-Credentials' 'true' always;
+
+            # Strip /auth prefix and forward to Keycloak
+            rewrite ^/auth/(.*)$ /$1 break;
+            proxy_pass http://127.0.0.1:8080/;
+            # Force consistent issuer and frontend URL resolution in Keycloak
+            proxy_set_header Host localhost:8080;
+            proxy_set_header X-Forwarded-Host localhost:8080;
+            proxy_set_header X-Forwarded-Proto http;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
+        # AgencyService admin endpoints (8084)
+        location /service/agencyadmin/ {
+            if ($request_method = OPTIONS) {
+                add_header 'Access-Control-Allow-Origin' $http_origin always;
+                add_header 'Vary' 'Origin' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, PATCH, DELETE, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, Cache-Control, Pragma, Expires, X-CSRF-Token, x-csrf-token, X-CSRF-Bypass, x-csrf-bypass, X-Requested-With, X-WHITELIST-HEADER' always;
+                add_header 'Access-Control-Allow-Credentials' 'true' always;
+                add_header 'Access-Control-Max-Age' 86400 always;
+                return 204;
+            }
+            add_header 'Access-Control-Allow-Origin' $http_origin always;
+            add_header 'Vary' 'Origin' always;
+            add_header 'Access-Control-Allow-Credentials' 'true' always;
+
+            proxy_pass http://127.0.0.1:8084/agencyadmin/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        # Appointment endpoints (routed via AgencyService 8084)
+        location /service/appointmentservice/ {
+            if ($request_method = OPTIONS) {
+                add_header 'Access-Control-Allow-Origin' $http_origin always;
+                add_header 'Vary' 'Origin' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, PATCH, DELETE, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, Cache-Control, Pragma, Expires, X-CSRF-Token, x-csrf-token, X-CSRF-Bypass, x-csrf-bypass, X-Requested-With, X-WHITELIST-HEADER' always;
+                add_header 'Access-Control-Allow-Credentials' 'true' always;
+                add_header 'Access-Control-Max-Age' 86400 always;
+                return 204;
+            }
+            add_header 'Access-Control-Allow-Origin' $http_origin always;
+            add_header 'Vary' 'Origin' always;
+            add_header 'Access-Control-Allow-Credentials' 'true' always;
+
+            proxy_pass http://127.0.0.1:8084;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        # ConsultingTypeService endpoints (8083)
+        location /service/consultingtypes/ {
+            if ($request_method = OPTIONS) {
+                add_header 'Access-Control-Allow-Origin' $http_origin always;
+                add_header 'Vary' 'Origin' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, PATCH, DELETE, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, Cache-Control, Pragma, Expires, X-CSRF-Token, x-csrf-token, X-CSRF-Bypass, x-csrf-bypass, X-Requested-With, X-WHITELIST-HEADER' always;
+                add_header 'Access-Control-Allow-Credentials' 'true' always;
+                add_header 'Access-Control-Max-Age' 86400 always;
+                return 204;
+            }
+            add_header 'Access-Control-Allow-Origin' $http_origin always;
+            add_header 'Vary' 'Origin' always;
+            add_header 'Access-Control-Allow-Credentials' 'true' always;
+
+            proxy_pass http://127.0.0.1:8083/consultingtypes/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+        # TenantService on host 8081 - direct public endpoints
+        location /tenant/ {
+            if ($request_method = OPTIONS) {
+                add_header 'Access-Control-Allow-Origin' $http_origin always;
+                add_header 'Vary' 'Origin' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, PATCH, DELETE, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, Cache-Control, Pragma, Expires, X-CSRF-Token, x-csrf-token, X-CSRF-Bypass, x-csrf-bypass, X-Requested-With, X-WHITELIST-HEADER' always;
+                add_header 'Access-Control-Allow-Credentials' 'true' always;
+                add_header 'Access-Control-Max-Age' 86400 always;
+                return 204;
+            }
+            add_header 'Access-Control-Allow-Origin' $http_origin always;
+            add_header 'Vary' 'Origin' always;
+            add_header 'Access-Control-Allow-Credentials' 'true' always;
+
+            proxy_pass http://127.0.0.1:8081/tenant/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        # TenantService access endpoint comes as /service/tenant/* from UI; rewrite to /tenant/*
+        location /service/tenant/ {
+            if ($request_method = OPTIONS) {
+                add_header 'Access-Control-Allow-Origin' $http_origin always;
+                add_header 'Vary' 'Origin' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, PATCH, DELETE, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, Cache-Control, Pragma, Expires, X-CSRF-Token, x-csrf-token, X-CSRF-Bypass, x-csrf-bypass, X-Requested-With, X-WHITELIST-HEADER' always;
+                add_header 'Access-Control-Allow-Credentials' 'true' always;
+                add_header 'Access-Control-Max-Age' 86400 always;
+                return 204;
+            }
+            add_header 'Access-Control-Allow-Origin' $http_origin always;
+            add_header 'Vary' 'Origin' always;
+            add_header 'Access-Control-Allow-Credentials' 'true' always;
+
+            rewrite ^/service/tenant/(.*)$ /tenant/$1 break;
+            proxy_pass http://127.0.0.1:8081;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        # Map admin's /service/settings to ConsultingTypeService /settings with CORS
+        location = /service/settings {
+            if ($request_method = OPTIONS) {
+                add_header 'Access-Control-Allow-Origin' $http_origin always;
+                add_header 'Vary' 'Origin' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, Cache-Control, Pragma, Expires, X-CSRF-Token, x-csrf-token, X-CSRF-Bypass, x-csrf-bypass, X-Requested-With, X-WHITELIST-HEADER' always;
+                add_header 'Access-Control-Allow-Credentials' 'true' always;
+                add_header 'Access-Control-Max-Age' 86400 always;
+                return 204;
+            }
+            add_header 'Access-Control-Allow-Origin' $http_origin always;
+            add_header 'Vary' 'Origin' always;
+            add_header 'Access-Control-Allow-Credentials' 'true' always;
+
+            proxy_pass http://127.0.0.1:8083/settings;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        # Map admin's /service/settingsadmin to ConsultingTypeService /settingsadmin with CORS
+        location = /service/settingsadmin {
+            if ($request_method = OPTIONS) {
+                add_header 'Access-Control-Allow-Origin' $http_origin always;
+                add_header 'Vary' 'Origin' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, PATCH, DELETE, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, Cache-Control, Pragma, Expires, X-CSRF-Token, x-csrf-token, X-CSRF-Bypass, x-csrf-bypass, X-Requested-With, X-WHITELIST-HEADER' always;
+                add_header 'Access-Control-Allow-Credentials' 'true' always;
+                add_header 'Access-Control-Max-Age' 86400 always;
+                return 204;
+            }
+            add_header 'Access-Control-Allow-Origin' $http_origin always;
+            add_header 'Vary' 'Origin' always;
+            add_header 'Access-Control-Allow-Credentials' 'true' always;
+
+            proxy_pass http://127.0.0.1:8083/settingsadmin;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        # ConversationController endpoints -> UserService (8082)
+        location /service/conversations/ {
+            if ($request_method = OPTIONS) {
+                add_header 'Access-Control-Allow-Origin' $http_origin always;
+                add_header 'Vary' 'Origin' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, PATCH, DELETE, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, Cache-Control, Pragma, Expires, X-CSRF-Token, x-csrf-token, X-CSRF-Bypass, x-csrf-bypass, X-Requested-With, X-WHITELIST-HEADER' always;
+                add_header 'Access-Control-Allow-Credentials' 'true' always;
+                add_header 'Access-Control-Allow-Max-Age' 86400 always;
+                return 204;
+            }
+            add_header 'Access-Control-Allow-Origin' $http_origin always;
+            add_header 'Vary' 'Origin' always;
+            add_header 'Access-Control-Allow-Credentials' 'true' always;
+
+            rewrite ^/service/conversations/(.*)$ /conversations/$1 break;
+            proxy_pass http://127.0.0.1:8082;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        # Optionally wire additional services as you bring them up locally
+        # UserService (8082)
+        location /service/users/ {
+            if ($request_method = OPTIONS) {
+                add_header 'Access-Control-Allow-Origin' $http_origin always;
+                add_header 'Vary' 'Origin' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, PATCH, DELETE, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, Cache-Control, Pragma, Expires, X-CSRF-Token, x-csrf-token, X-CSRF-Bypass, x-csrf-bypass, X-Requested-With, X-WHITELIST-HEADER' always;
+                add_header 'Access-Control-Allow-Credentials' 'true' always;
+                add_header 'Access-Control-Max-Age' 86400 always;
+                return 204;
+            }
+            add_header 'Access-Control-Allow-Origin' $http_origin always;
+            add_header 'Vary' 'Origin' always;
+            add_header 'Access-Control-Allow-Credentials' 'true' always;
+
+            rewrite ^/service/users/(.*)$ /users/$1 break;
+            proxy_pass http://127.0.0.1:8082;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        # Matrix Synapse proxy - route /service/matrix/* to UserService MatrixMessageController
+        location /service/matrix/ {
+            if ($request_method = OPTIONS) {
+                add_header 'Access-Control-Allow-Origin' $http_origin always;
+                add_header 'Vary' 'Origin' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, PATCH, DELETE, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, Cache-Control, Pragma, Expires, X-CSRF-Token, x-csrf-token, X-CSRF-Bypass, x-csrf-bypass, X-Requested-With, X-WHITELIST-HEADER' always;
+                add_header 'Access-Control-Allow-Credentials' 'true' always;
+                add_header 'Access-Control-Max-Age' 86400 always;
+                return 204;
+            }
+            add_header 'Access-Control-Allow-Origin' $http_origin always;
+            add_header 'Vary' 'Origin' always;
+            add_header 'Access-Control-Allow-Credentials' 'true' always;
+
+            # Strip /service prefix before forwarding to UserService MatrixMessageController
+            rewrite ^/service/matrix/(.*)$ /matrix/$1 break;
+            proxy_pass http://127.0.0.1:8082;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        # Matrix Media API - direct proxy to Matrix Synapse for file uploads
+        location /_matrix/media/ {
+            # Hide Matrix's default CORS headers to avoid duplicates
+            proxy_hide_header 'Access-Control-Allow-Origin';
+            proxy_hide_header 'Access-Control-Allow-Credentials';
+            proxy_hide_header 'Access-Control-Allow-Methods';
+            proxy_hide_header 'Access-Control-Allow-Headers';
+
+            if ($request_method = OPTIONS) {
+                add_header 'Access-Control-Allow-Origin' $http_origin always;
+                add_header 'Vary' 'Origin' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, Cache-Control, X-CSRF-TOKEN' always;
+                add_header 'Access-Control-Allow-Credentials' 'true' always;
+                add_header 'Access-Control-Max-Age' 86400 always;
+                return 204;
+            }
+            add_header 'Access-Control-Allow-Origin' $http_origin always;
+            add_header 'Vary' 'Origin' always;
+            add_header 'Access-Control-Allow-Credentials' 'true' always;
+
+            # Forward to Matrix Synapse via NodePort on localhost
+            proxy_pass http://127.0.0.1:30292;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            
+            # File upload specific settings
+            client_max_body_size 50M;
+            proxy_request_buffering off;
+        }
+
+        location /service/useradmin/ {
+            if ($request_method = OPTIONS) {
+                add_header 'Access-Control-Allow-Origin' $http_origin always;
+                add_header 'Vary' 'Origin' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, PATCH, DELETE, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, Cache-Control, Pragma, Expires, X-CSRF-Token, x-csrf-token, X-CSRF-Bypass, x-csrf-bypass, X-Requested-With, X-WHITELIST-HEADER' always;
+                add_header 'Access-Control-Allow-Credentials' 'true' always;
+                add_header 'Access-Control-Max-Age' 86400 always;
+                return 204;
+            }
+            add_header 'Access-Control-Allow-Origin' $http_origin always;
+            add_header 'Vary' 'Origin' always;
+            add_header 'Access-Control-Allow-Credentials' 'true' always;
+
+            proxy_pass http://127.0.0.1:8082/useradmin/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        # Tenant admin endpoints → UserService (8082)
+        location /service/tenantadmin/ {
+            if ($request_method = OPTIONS) {
+                add_header 'Access-Control-Allow-Origin' $http_origin always;
+                add_header 'Vary' 'Origin' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, PATCH, DELETE, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, Cache-Control, Pragma, Expires, X-CSRF-Token, x-csrf-token, X-CSRF-Bypass, x-csrf-bypass, X-Requested-With, X-WHITELIST-HEADER' always;
+                add_header 'Access-Control-Allow-Credentials' 'true' always;
+                add_header 'Access-Control-Max-Age' 86400 always;
+                return 204;
+            }
+            add_header 'Access-Control-Allow-Origin' $http_origin always;
+            add_header 'Vary' 'Origin' always;
+            add_header 'Access-Control-Allow-Credentials' 'true' always;
+
+            proxy_pass http://127.0.0.1:8081/tenantadmin/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        # Agency endpoints → AgencyService (8084)
+        location /service/agencies {
+            if ($request_method = OPTIONS) {
+                add_header 'Access-Control-Allow-Origin' $http_origin always;
+                add_header 'Vary' 'Origin' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, PATCH, DELETE, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, Cache-Control, Pragma, Expires, X-CSRF-Token, x-csrf-token, X-CSRF-Bypass, x-csrf-bypass, X-Requested-With, X-WHITELIST-HEADER' always;
+                add_header 'Access-Control-Allow-Credentials' 'true' always;
+                add_header 'Access-Control-Max-Age' 86400 always;
+                return 204;
+            }
+            add_header 'Access-Control-Allow-Origin' $http_origin always;
+            add_header 'Vary' 'Origin' always;
+            add_header 'Access-Control-Allow-Credentials' 'true' always;
+
+            proxy_pass http://127.0.0.1:8084/agencies;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        # Topic endpoints → ConsultingTypeService (8083)
+        location /service/topic/ {
+            if ($request_method = OPTIONS) {
+                add_header 'Access-Control-Allow-Origin' $http_origin always;
+                add_header 'Vary' 'Origin' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, PATCH, DELETE, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, Cache-Control, Pragma, Expires, X-CSRF-Token, X-Requested-With, rcToken, rcUserId, rctoken, rcuserid, X-WHITELIST-HEADER' always;
+                add_header 'Access-Control-Allow-Credentials' 'true' always;
+                add_header 'Access-Control-Max-Age' 86400 always;
+                return 204;
+            }
+            add_header 'Access-Control-Allow-Origin' $http_origin always;
+            add_header 'Vary' 'Origin' always;
+            add_header 'Access-Control-Allow-Credentials' 'true' always;
+
+            proxy_pass http://127.0.0.1:8083/topic/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        # Topic groups endpoints → ConsultingTypeService (8083)
+        location /service/topic-groups/ {
+            if ($request_method = OPTIONS) {
+                add_header 'Access-Control-Allow-Origin' $http_origin always;
+                add_header 'Vary' 'Origin' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, PATCH, DELETE, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, Cache-Control, Pragma, Expires, X-CSRF-Token, x-csrf-token, X-CSRF-Bypass, x-csrf-bypass, X-Requested-With, X-WHITELIST-HEADER' always;
+                add_header 'Access-Control-Allow-Credentials' 'true' always;
+                add_header 'Access-Control-Max-Age' 86400 always;
+                return 204;
+            }
+            add_header 'Access-Control-Allow-Origin' $http_origin always;
+            add_header 'Vary' 'Origin' always;
+            add_header 'Access-Control-Allow-Credentials' 'true' always;
+
+            proxy_pass http://127.0.0.1:8083/topic-groups/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location /service/topicadmin/ {
+            if ($request_method = OPTIONS) {
+                add_header 'Access-Control-Allow-Origin' $http_origin always;
+                add_header 'Vary' 'Origin' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, PATCH, DELETE, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, Cache-Control, Pragma, Expires, X-CSRF-Token, X-Requested-With, rcToken, rcUserId, rctoken, rcuserid, X-WHITELIST-HEADER' always;
+                add_header 'Access-Control-Allow-Credentials' 'true' always;
+                add_header 'Access-Control-Max-Age' 86400 always;
+                return 204;
+            }
+            add_header 'Access-Control-Allow-Origin' $http_origin always;
+            add_header 'Vary' 'Origin' always;
+            add_header 'Access-Control-Allow-Credentials' 'true' always;
+
+            proxy_pass http://127.0.0.1:8084;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        # UploadService endpoints (8085) - Matrix file uploads
+        location /service/uploads/ {
+            if ($request_method = OPTIONS) {
+                add_header 'Access-Control-Allow-Origin' $http_origin always;
+                add_header 'Vary' 'Origin' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, PATCH, DELETE, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, Cache-Control, Pragma, Expires, X-CSRF-Token, x-csrf-token, X-Requested-With, X-WHITELIST-HEADER, rcToken, rcUserId, rctoken, rcuserid' always;
+                add_header 'Access-Control-Allow-Credentials' 'true' always;
+                add_header 'Access-Control-Max-Age' 86400 always;
+                return 204;
+            }
+            add_header 'Access-Control-Allow-Origin' $http_origin always;
+            add_header 'Vary' 'Origin' always;
+            add_header 'Access-Control-Allow-Credentials' 'true' always;
+
+            set $uploadservice_backend "10.43.129.230:8085";
+            proxy_pass http://$uploadservice_backend/uploads/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            
+            # File upload specific settings
+            client_max_body_size 25M;
+        }
+
+        # Health Dashboard (9100)
+        location /health/ {
+            proxy_pass http://127.0.0.1:30100/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cob-proxy
+  namespace: caritas
+  labels:
+    app: cob-proxy
+spec:
+  replicas: 1
+  revisionHistoryLimit: 1
+  selector:
+    matchLabels:
+      app: cob-proxy
+  template:
+    metadata:
+      labels:
+        app: cob-proxy
+    spec:
+      hostNetwork: true
+      containers:
+      - name: cob-proxy
+        image: nginx:alpine
+        ports:
+        - containerPort: 8089
+          protocol: TCP
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+        livenessProbe:
+          httpGet:
+            path: /health/
+            port: 8089
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health/
+            port: 8089
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: oriso-nginx-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cob-proxy
+  namespace: caritas
+  labels:
+    app: cob-proxy
+spec:
+  selector:
+    app: cob-proxy
+  ports:
+  - port: 8089
+    targetPort: 8089
+    protocol: TCP
+  type: ClusterIP
+
